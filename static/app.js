@@ -93,7 +93,7 @@ function initializeSpeechRecognition() {
         // Variable to track if speech has been detected
         let hasSpeechDetected = false;
         let silenceTimer = null;
-        const SILENCE_THRESHOLD = 2000; // 2 seconds of silence to auto-submit
+        const SILENCE_THRESHOLD = 25000; // 10 seconds of silence to auto-submit
         
         config.recognition.onstart = () => {
             updateStatus('Listening... Speak now.');
@@ -278,16 +278,51 @@ async function sendMessage() {
     }
 }
 
-// Text to Speech
-function speakText(text) {
-    if ('speechSynthesis' in window) {
-        const speech = new SpeechSynthesisUtterance(text);
-        speech.lang = 'en-US';
-        speech.rate = 0.9;  // Slightly slower for better comprehension
-        speech.pitch = 1;
-        window.speechSynthesis.speak(speech);
-    } else {
-        console.warn('Text-to-speech not supported in this browser');
+// Update the Text to Speech function in app.js
+async function speakText(text) {
+    updateStatus('Generating speech...');
+    
+    try {
+        const response = await fetch('/api/tts', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                text: text,
+                voice: 'default'  // You can add a voice selector in the UI and pass the value here
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        
+        // Create an audio element and play the speech
+        const audio = new Audio(`data:audio/wav;base64,${data.audio}`);
+        audio.onended = () => {
+            updateStatus('Ready for your response.');
+        };
+        audio.play();
+        
+    } catch (error) {
+        console.error('Error with TTS:', error);
+        updateStatus('Error generating speech. Falling back to browser TTS.');
+        
+        // Fallback to browser TTS if the server TTS fails
+        if ('speechSynthesis' in window) {
+            const speech = new SpeechSynthesisUtterance(text);
+            speech.lang = 'en-US';
+            speech.rate = 0.9;
+            speech.pitch = 1;
+            window.speechSynthesis.speak(speech);
+        }
     }
 }
 
