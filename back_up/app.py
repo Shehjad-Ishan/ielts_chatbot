@@ -38,7 +38,7 @@ def handle_ollama_api(model, messages, endpoint):
 def chat():
     try:
         data = request.json
-        model = data.get('model', 'gemma3:12b')
+        model = data.get('model', 'gemma2:27b')
         messages = data.get('messages', [])
         endpoint = data.get('endpoint', 'http://localhost:11434')
         
@@ -59,7 +59,7 @@ def text_to_speech():
         text = data.get('text', '')
         language = data.get('language', 'en')
         slow = data.get('slow', False)
-        tld = data.get('tld', 'co.in')
+        tld = data.get('tld', 'com')
         
         audio_data = generate_speech(text, language, slow, tld)
         
@@ -85,7 +85,7 @@ def serve_static(path):
         return send_from_directory('static', 'index.html')
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 80))
+    port = int(os.environ.get('PORT', 5000))
     # Create a voices directory if it doesn't exist
     os.makedirs('static/voices', exist_ok=True)
     app.run(host='0.0.0.0', port=port, debug=True)
