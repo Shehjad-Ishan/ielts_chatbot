@@ -7,29 +7,76 @@ import base64
 from gtts import gTTS
 from deepmultilingualpunctuation import PunctuationModel
 import numpy as np
+import logging
+import psutil
+import gc
+from logging.handlers import RotatingFileHandler
+from functools import wraps
+import time
+
+# Configure logging
+if not os.path.exists('logs'):
+    os.makedirs('logs')
+
+logging.basicConfig(
+    handlers=[RotatingFileHandler('logs/app.log', maxBytes=10000000, backupCount=5)],
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 app = Flask(__name__, static_folder='static')
 
-# Initialize the models at startup
-print("Initializing models...")
-
-# Initialize Punctuation Model
-print("Loading punctuation model...")
-punctuation_model = PunctuationModel()
-print("Punctuation model initialized!")
+def memory_check(threshold=90):
+    """Decorator to check memory before and after function execution"""
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            process = psutil.Process()
+            before_mem = process.memory_percent()
+            
+            if before_mem > threshold:
+                gc.collect()
+                logger.warning(f"High memory usage before execution: {before_mem}%")
+                
+            result = f(*args, **kwargs)
+            
+            after_mem = process.memory_percent()
+            if after_mem > threshold:
+                gc.collect()
+                logger.warning(f"High memory usage after execution: {after_mem}%")
+                
+            return result
+        return wrapper
+    return decorator
 
 class OllamaModel:
+    _instance = None
+    _is_initialized = False
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
     def __init__(self, model_name="gemma3:12b", endpoint="http://localhost:11434"):
-        self.model_name = model_name
-        self.endpoint = endpoint
-        self.session = requests.Session()
-        self._initialize_model()
-    
+        if not OllamaModel._is_initialized:
+            self.model_name = model_name
+            self.endpoint = endpoint
+            self.session = requests.Session()
+            self.last_request_time = 0
+            self.request_cooldown = 1.0
+            self._initialize_model()
+            OllamaModel._is_initialized = True
+            logger.info("Ollama model initialized for the first time")
+        else:
+            logger.info("Using existing Ollama model instance")
+
     def _initialize_model(self):
         try:
-            print(f"Initializing Ollama model: {self.model_name}")
+            logger.info(f"Initializing Ollama model: {self.model_name}")
             response = self.session.post(
                 f"{self.endpoint}/api/chat",
                 json={
@@ -42,14 +89,21 @@ class OllamaModel:
                 }
             )
             if response.status_code == 200:
-                print(f"Ollama model {self.model_name} initialized successfully!")
+                logger.info(f"Ollama model {self.model_name} initialized successfully!")
             else:
-                print(f"Warning: Ollama initialization returned status code {response.status_code}")
+                logger.warning(f"Warning: Ollama initialization returned status code {response.status_code}")
         except Exception as e:
-            print(f"Warning: Could not initialize Ollama model: {str(e)}")
+            logger.error(f"Warning: Could not initialize Ollama model: {str(e)}")
     
+    @memory_check(threshold=85)
     def chat(self, messages):
         try:
+            # Rate limiting
+            current_time = time.time()
+            time_since_last = current_time - self.last_request_time
+            if time_since_last < self.request_cooldown:
+                time.sleep(self.request_cooldown - time_since_last)
+            
             response = self.session.post(
                 f"{self.endpoint}/api/chat",
                 json={
@@ -58,36 +112,71 @@ class OllamaModel:
                     "stream": False
                 }
             )
+            
+            self.last_request_time = time.time()
+            
             if response.status_code != 200:
                 return None, f"Ollama API returned status code {response.status_code}"
+            
             return response.json(), None
         except Exception as e:
             return None, str(e)
+        finally:
+            gc.collect()
 
-def generate_speech(text, language='en', slow=False, tld='com'):
-    """Generate speech using gTTS and return the audio data as base64."""
-    tts = gTTS(text=text, lang=language, slow=slow, tld=tld)
-    audio_buffer = io.BytesIO()
-    tts.write_to_fp(audio_buffer)
-    audio_buffer.seek(0)
-    audio_data = base64.b64encode(audio_buffer.read()).decode('utf-8')
-    return audio_data
+class SpeechHandler:
+    def __init__(self):
+        self._punctuation_model = None
+    
+    @property
+    def punctuation_model(self):
+        if self._punctuation_model is None:
+            self._punctuation_model = PunctuationModel()
+        return self._punctuation_model
+    
+    @memory_check(threshold=85)
+    def generate_speech(self, text, language='en', slow=False, tld='co.in'):
+        try:
+            tts = gTTS(text=text, lang=language, slow=slow, tld=tld)
+            audio_buffer = io.BytesIO()
+            tts.write_to_fp(audio_buffer)
+            audio_buffer.seek(0)
+            return base64.b64encode(audio_buffer.read()).decode('utf-8')
+        finally:
+            gc.collect()
+    
+    @memory_check(threshold=85)
+    def format_punctuated_text(self, text):
+        if not text.strip():
+            return text
+        
+        try:
+            clean_text = self.punctuation_model.preprocess(text)
+            labeled_words = self.punctuation_model.predict(clean_text)
+            
+            result = []
+            for word, punct, _ in labeled_words:
+                if punct != '0':
+                    result.append(word + punct)
+                else:
+                    result.append(word)
+            
+            final_text = ' '.join(result)
+            sentences = final_text.split('. ')
+            sentences = [s[0].upper() + s[1:] if len(s) > 0 else s for s in sentences]
+            return '. '.join(sentences)
+        except Exception as e:
+            logger.error(f"Text processing error: {str(e)}")
+            return text
+        finally:
+            gc.collect()
 
-def format_punctuated_text(labeled_words):
-    """Convert labeled words into properly formatted text."""
-    result = []
-    for word, punct, _ in labeled_words:
-        if punct != '0':  # If there's punctuation
-            result.append(word + punct)
-        else:
-            result.append(word)
-    return ' '.join(result)
-
-# Initialize Ollama model
+# Initialize handlers lazily
+speech_handler = SpeechHandler()
 ollama_model = OllamaModel()
-print("All models initialized successfully!")
 
 @app.route('/api/chat', methods=['POST'])
+@memory_check(threshold=85)
 def chat():
     try:
         data = request.json
@@ -98,80 +187,57 @@ def chat():
             return jsonify({"error": error}), 500
         
         return jsonify({"response": response_data["message"]["content"]})
-        
     except Exception as e:
-        print(f"Error calling Ollama API: {str(e)}")
-        return jsonify({"error": "Failed to get response from Ollama", "details": str(e)}), 500
+        logger.error(f"Chat endpoint error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/punctuate', methods=['POST'])
+@memory_check(threshold=85)
 def punctuate_text():
     try:
         data = request.json
         text = data.get('text', '')
-        
-        if not text.strip():
-            return jsonify({"text": text})
-        
-        try:
-            # Preprocess the text
-            clean_text = punctuation_model.preprocess(text)
-            # Get punctuated text
-            labeled_words = punctuation_model.predict(clean_text)
-            
-            # Format the text properly
-            final_text = format_punctuated_text(labeled_words)
-            
-            # Capitalize the first letter of sentences
-            sentences = final_text.split('. ')
-            sentences = [s[0].upper() + s[1:] if len(s) > 0 else s for s in sentences]
-            final_text = '. '.join(sentences)
-            
-            print(f"Original text: {text}")
-            print(f"Processed text: {final_text}")
-            
-            return jsonify({"text": final_text})
-            
-        except Exception as e:
-            print(f"Error in punctuation processing: {str(e)}")
-            return jsonify({"text": text})
-        
+        result = speech_handler.format_punctuated_text(text)
+        return jsonify({"text": result})
     except Exception as e:
-        print(f"Error in punctuation endpoint: {str(e)}")
-        return jsonify({"error": str(e), "text": text}), 500
+        logger.error(f"Punctuation endpoint error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/tts', methods=['POST'])
+@memory_check(threshold=85)
 def text_to_speech():
     try:
         data = request.json
-        text = data.get('text', '')
-        language = data.get('language', 'en')
-        slow = data.get('slow', False)
-        tld = data.get('tld', 'co.in')
-        
-        audio_data = generate_speech(text, language, slow, tld)
-        
+        audio_data = speech_handler.generate_speech(
+            text=data.get('text', ''),
+            language=data.get('language', 'en'),
+            slow=data.get('slow', False),
+            tld=data.get('tld', 'co.in')
+        )
         return jsonify({"audio": audio_data})
-        
     except Exception as e:
-        print(f"Error generating TTS: {str(e)}")
-        return jsonify({"error": "Failed to generate speech", "details": str(e)}), 500
+        logger.error(f"TTS endpoint error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/memory', methods=['GET'])
+def memory_status():
+    process = psutil.Process()
+    memory_info = {
+        "percent": process.memory_percent(),
+        "rss_mb": process.memory_info().rss / 1024 / 1024,
+        "vms_mb": process.memory_info().vms / 1024 / 1024
+    }
+    gc.collect()  # Force garbage collection
+    return jsonify(memory_info)
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
     return jsonify({"status": "ok"})
 
-# Serve the frontend files
+# Static file serving
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_static(path):
-    if path == "":
-        return send_from_directory('static', 'index.html')
-    try:
-        return send_from_directory('static', path)
-    except:
-        return send_from_directory('static', 'index.html')
-
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 80))
-    os.makedirs('static/voices', exist_ok=True)
-    app.run(host='0.0.0.0', port=port, debug=True)
+    if path == "" or not os.path.exists(os.path.join(app.static_folder, path)):
+        return send_from_directory(app.static_folder, 'index.html')
+    return send_from_directory(app.static_folder, path)

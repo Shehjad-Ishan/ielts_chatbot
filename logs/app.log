@@ -1,0 +1,20 @@
+2025-03-17 01:48:55,986 - WARNING - From C:\Users\shehj\anaconda3\Lib\site-packages\tf_keras\src\losses.py:2976: The name tf.losses.sparse_softmax_cross_entropy is deprecated. Please use tf.compat.v1.losses.sparse_softmax_cross_entropy instead.
+
+2025-03-17 01:48:59,074 - INFO - Punctuation model initialized!
+2025-03-17 01:48:59,074 - INFO - Initializing Ollama model: gemma3:12b
+2025-03-17 01:50:07,337 - INFO - Ollama model gemma3:12b initialized successfully!
+2025-03-17 01:50:07,402 - INFO - Serving on http://0.0.0.0:80
+2025-03-17 01:56:58,216 - INFO - Initializing Ollama model: gemma3:12b
+2025-03-17 01:58:01,249 - INFO - Ollama model initialized successfully!
+2025-03-17 01:58:01,268 - INFO - Serving on http://0.0.0.0:80
+2025-03-17 01:58:37,677 - WARNING - From C:\Users\shehj\anaconda3\Lib\site-packages\tf_keras\src\losses.py:2976: The name tf.losses.sparse_softmax_cross_entropy is deprecated. Please use tf.compat.v1.losses.sparse_softmax_cross_entropy instead.
+
+2025-03-17 02:04:22,402 - INFO - Initializing Ollama model: gemma3:12b
+2025-03-17 02:05:20,817 - INFO - Ollama model gemma3:12b initialized successfully!
+2025-03-17 02:05:20,818 - INFO - Ollama model initialized for the first time
+2025-03-17 02:05:20,842 - INFO - Serving on http://0.0.0.0:80
+2025-03-17 02:05:51,568 - WARNING - From C:\Users\shehj\anaconda3\Lib\site-packages\tf_keras\src\losses.py:2976: The name tf.losses.sparse_softmax_cross_entropy is deprecated. Please use tf.compat.v1.losses.sparse_softmax_cross_entropy instead.
+
+2025-03-17 02:05:51,989 - WARNING - Task queue depth is 1
+2025-03-17 02:06:02,013 - WARNING - Task queue depth is 1
+2025-03-17 02:06:02,018 - WARNING - Task queue depth is 2

@@ -128,7 +128,7 @@ function initializeSpeechRecognition() {
         config.recognition = new SpeechRecognition();
         config.recognition.continuous = true;
         config.recognition.interimResults = true;
-        config.recognition.lang = 'en-US';
+        config.recognition.lang = 'en-IN';
         
         let hasSpeechDetected = false;
         let silenceTimer = null;
