@@ -211,6 +211,31 @@ function initializeSpeechRecognition() {
             }, SILENCE_THRESHOLD);
         };
 
+        config.recognition.onresult = async (event) => {
+            fullTranscript = '';
+            
+            // Just collect the transcript without punctuation during recording
+            for (let i = 0; i < event.results.length; i++) {
+                fullTranscript += event.results[i][0].transcript + ' ';
+            }
+            
+            fullTranscript = fullTranscript.trim();
+            userInput.value = fullTranscript;
+            
+            if (tempMessageElement) {
+                tempMessageElement.textContent = fullTranscript;
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+        
+            const currentTime = Date.now();
+            if (!hasSpeechDetected) {
+                hasSpeechDetected = true;
+            } else if (currentTime - lastSpeechTimestamp > 1500) {
+                config.pauseCount++;
+            }
+            lastSpeechTimestamp = currentTime;
+        };
+        
         config.recognition.onend = async () => {
             startRecordingButton.disabled = false;
             stopRecordingButton.disabled = true;
@@ -221,6 +246,7 @@ function initializeSpeechRecognition() {
             }
             
             if (hasSpeechDetected && fullTranscript.trim() !== '' && !config.messageSent) {
+                // Only process punctuation once at the end of recording
                 const punctuatedTranscript = await processPunctuation(fullTranscript);
                 
                 if (tempMessageElement) {

@@ -1,4 +1,3 @@
-# app.py - Flask backend server for IELTS Examiner application
 from flask import Flask, request, jsonify, send_file, send_from_directory
 import requests
 import os
@@ -6,65 +5,64 @@ import json
 import io
 import base64
 from gtts import gTTS
-import re
+from deepmultilingualpunctuation import PunctuationModel
+import numpy as np
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 app = Flask(__name__, static_folder='static')
 
-class SimplePunctuator:
-    def __init__(self):
-        self.sentence_endings = r'([.!?])\s+'
-        self.comma_patterns = [
-            r'(,)\s+',
-            r'\b(but|and|or|nor|for|so|yet)\b',
-            r'\b(however|moreover|furthermore|therefore|nevertheless|meanwhile|consequently)\b',
-            r'\b(in addition|as a result|for example|for instance)\b',
-        ]
+# Initialize the models at startup
+print("Initializing models...")
+
+# Initialize Punctuation Model
+print("Loading punctuation model...")
+punctuation_model = PunctuationModel()
+print("Punctuation model initialized!")
+
+class OllamaModel:
+    def __init__(self, model_name="gemma3:12b", endpoint="http://localhost:11434"):
+        self.model_name = model_name
+        self.endpoint = endpoint
+        self.session = requests.Session()
+        self._initialize_model()
     
-    def capitalize_sentences(self, text):
-        sentences = re.split(self.sentence_endings, text)
-        result = []
-        for i in range(0, len(sentences), 2):
-            if i < len(sentences):
-                sentence = sentences[i].strip()
-                if sentence:
-                    sentence = sentence[0].upper() + sentence[1:] if len(sentence) > 1 else sentence.upper()
-                    result.append(sentence)
-                if i + 1 < len(sentences):
-                    result.append(sentences[i + 1])
-        return ' '.join(result)
-
-    def add_punctuation(self, text):
-        # Remove existing punctuation and extra spaces
-        text = ' '.join(text.split())
-        
-        # Add periods for sentence-like structures
-        text = re.sub(r'(?<=[.!?])\s+', ' ', text)
-        text = re.sub(r'(?<=[a-z])\s+(?=[A-Z])', '. ', text)
-        
-        # Add question marks for questions
-        text = re.sub(r'\b(what|who|where|when|why|how|which|whose|whom)\b.*?(?=[.!?]|\Z)', 
-                     lambda m: m.group(0) + '?', 
-                     text, 
-                     flags=re.IGNORECASE)
-        
-        # Add commas
-        for pattern in self.comma_patterns:
-            text = re.sub(f'\\s+{pattern}\\s+', r', \1 ', text)
-        
-        # Clean up spacing around punctuation
-        text = re.sub(r'\s+([.!?,])', r'\1', text)
-        text = re.sub(r'([.!?,])', r'\1 ', text)
-        text = re.sub(r'\s+', ' ', text)
-        
-        # Capitalize sentences
-        text = self.capitalize_sentences(text)
-        
-        return text.strip()
-
-# Initialize punctuator
-punctuator = SimplePunctuator()
+    def _initialize_model(self):
+        try:
+            print(f"Initializing Ollama model: {self.model_name}")
+            response = self.session.post(
+                f"{self.endpoint}/api/chat",
+                json={
+                    "model": self.model_name,
+                    "messages": [{
+                        "role": "system", 
+                        "content": "You are an IELTS examiner. Evaluate responses professionally and provide constructive feedback."
+                    }],
+                    "stream": False
+                }
+            )
+            if response.status_code == 200:
+                print(f"Ollama model {self.model_name} initialized successfully!")
+            else:
+                print(f"Warning: Ollama initialization returned status code {response.status_code}")
+        except Exception as e:
+            print(f"Warning: Could not initialize Ollama model: {str(e)}")
+    
+    def chat(self, messages):
+        try:
+            response = self.session.post(
+                f"{self.endpoint}/api/chat",
+                json={
+                    "model": self.model_name,
+                    "messages": messages,
+                    "stream": False
+                }
+            )
+            if response.status_code != 200:
+                return None, f"Ollama API returned status code {response.status_code}"
+            return response.json(), None
+        except Exception as e:
+            return None, str(e)
 
 def generate_speech(text, language='en', slow=False, tld='com'):
     """Generate speech using gTTS and return the audio data as base64."""
@@ -75,29 +73,27 @@ def generate_speech(text, language='en', slow=False, tld='com'):
     audio_data = base64.b64encode(audio_buffer.read()).decode('utf-8')
     return audio_data
 
-def handle_ollama_api(model, messages, endpoint):
-    """Call the Ollama API and return the response data."""
-    ollama_response = requests.post(
-        f"{endpoint}/api/chat",
-        json={
-            "model": model,
-            "messages": messages,
-            "stream": False
-        }
-    )
-    if ollama_response.status_code != 200:
-        return None, f"Ollama API returned status code {ollama_response.status_code}"
-    return ollama_response.json(), None
+def format_punctuated_text(labeled_words):
+    """Convert labeled words into properly formatted text."""
+    result = []
+    for word, punct, _ in labeled_words:
+        if punct != '0':  # If there's punctuation
+            result.append(word + punct)
+        else:
+            result.append(word)
+    return ' '.join(result)
+
+# Initialize Ollama model
+ollama_model = OllamaModel()
+print("All models initialized successfully!")
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
     try:
         data = request.json
-        model = data.get('model', 'gemma3:12b')
         messages = data.get('messages', [])
-        endpoint = data.get('endpoint', 'http://localhost:11434')
         
-        response_data, error = handle_ollama_api(model, messages, endpoint)
+        response_data, error = ollama_model.chat(messages)
         if error:
             return jsonify({"error": error}), 500
         
@@ -116,11 +112,31 @@ def punctuate_text():
         if not text.strip():
             return jsonify({"text": text})
         
-        result = punctuator.add_punctuation(text)
-        return jsonify({"text": result})
+        try:
+            # Preprocess the text
+            clean_text = punctuation_model.preprocess(text)
+            # Get punctuated text
+            labeled_words = punctuation_model.predict(clean_text)
+            
+            # Format the text properly
+            final_text = format_punctuated_text(labeled_words)
+            
+            # Capitalize the first letter of sentences
+            sentences = final_text.split('. ')
+            sentences = [s[0].upper() + s[1:] if len(s) > 0 else s for s in sentences]
+            final_text = '. '.join(sentences)
+            
+            print(f"Original text: {text}")
+            print(f"Processed text: {final_text}")
+            
+            return jsonify({"text": final_text})
+            
+        except Exception as e:
+            print(f"Error in punctuation processing: {str(e)}")
+            return jsonify({"text": text})
         
     except Exception as e:
-        print(f"Error in punctuation: {str(e)}")
+        print(f"Error in punctuation endpoint: {str(e)}")
         return jsonify({"error": str(e), "text": text}), 500
 
 @app.route('/api/tts', methods=['POST'])
@@ -157,6 +173,5 @@ def serve_static(path):
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 80))
-    # Create a voices directory if it doesn't exist
     os.makedirs('static/voices', exist_ok=True)
     app.run(host='0.0.0.0', port=port, debug=True)
