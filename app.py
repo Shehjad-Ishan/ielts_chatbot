@@ -6,10 +6,65 @@ import json
 import io
 import base64
 from gtts import gTTS
+import re
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 app = Flask(__name__, static_folder='static')
+
+class SimplePunctuator:
+    def __init__(self):
+        self.sentence_endings = r'([.!?])\s+'
+        self.comma_patterns = [
+            r'(,)\s+',
+            r'\b(but|and|or|nor|for|so|yet)\b',
+            r'\b(however|moreover|furthermore|therefore|nevertheless|meanwhile|consequently)\b',
+            r'\b(in addition|as a result|for example|for instance)\b',
+        ]
+    
+    def capitalize_sentences(self, text):
+        sentences = re.split(self.sentence_endings, text)
+        result = []
+        for i in range(0, len(sentences), 2):
+            if i < len(sentences):
+                sentence = sentences[i].strip()
+                if sentence:
+                    sentence = sentence[0].upper() + sentence[1:] if len(sentence) > 1 else sentence.upper()
+                    result.append(sentence)
+                if i + 1 < len(sentences):
+                    result.append(sentences[i + 1])
+        return ' '.join(result)
+
+    def add_punctuation(self, text):
+        # Remove existing punctuation and extra spaces
+        text = ' '.join(text.split())
+        
+        # Add periods for sentence-like structures
+        text = re.sub(r'(?<=[.!?])\s+', ' ', text)
+        text = re.sub(r'(?<=[a-z])\s+(?=[A-Z])', '. ', text)
+        
+        # Add question marks for questions
+        text = re.sub(r'\b(what|who|where|when|why|how|which|whose|whom)\b.*?(?=[.!?]|\Z)', 
+                     lambda m: m.group(0) + '?', 
+                     text, 
+                     flags=re.IGNORECASE)
+        
+        # Add commas
+        for pattern in self.comma_patterns:
+            text = re.sub(f'\\s+{pattern}\\s+', r', \1 ', text)
+        
+        # Clean up spacing around punctuation
+        text = re.sub(r'\s+([.!?,])', r'\1', text)
+        text = re.sub(r'([.!?,])', r'\1 ', text)
+        text = re.sub(r'\s+', ' ', text)
+        
+        # Capitalize sentences
+        text = self.capitalize_sentences(text)
+        
+        return text.strip()
+
+# Initialize punctuator
+punctuator = SimplePunctuator()
 
 def generate_speech(text, language='en', slow=False, tld='com'):
     """Generate speech using gTTS and return the audio data as base64."""
@@ -51,6 +106,22 @@ def chat():
     except Exception as e:
         print(f"Error calling Ollama API: {str(e)}")
         return jsonify({"error": "Failed to get response from Ollama", "details": str(e)}), 500
+
+@app.route('/api/punctuate', methods=['POST'])
+def punctuate_text():
+    try:
+        data = request.json
+        text = data.get('text', '')
+        
+        if not text.strip():
+            return jsonify({"text": text})
+        
+        result = punctuator.add_punctuation(text)
+        return jsonify({"text": result})
+        
+    except Exception as e:
+        print(f"Error in punctuation: {str(e)}")
+        return jsonify({"error": str(e), "text": text}), 500
 
 @app.route('/api/tts', methods=['POST'])
 def text_to_speech():
