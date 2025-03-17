@@ -18,3 +18,34 @@
 2025-03-17 02:05:51,989 - WARNING - Task queue depth is 1
 2025-03-17 02:06:02,013 - WARNING - Task queue depth is 1
 2025-03-17 02:06:02,018 - WARNING - Task queue depth is 2
+2025-03-17 03:55:41,802 - WARNING - Task queue depth is 1
+2025-03-17 03:57:59,828 - INFO - Initializing Ollama model: gemma3:4b
+2025-03-17 03:58:17,385 - INFO - Ollama model gemma3:4b initialized successfully!
+2025-03-17 03:58:17,385 - INFO - Ollama model initialized for the first time
+2025-03-17 03:58:17,425 - INFO - Serving on http://0.0.0.0:80
+2025-03-17 03:58:40,247 - WARNING - From C:\Users\shehj\anaconda3\Lib\site-packages\tf_keras\src\losses.py:2976: The name tf.losses.sparse_softmax_cross_entropy is deprecated. Please use tf.compat.v1.losses.sparse_softmax_cross_entropy instead.
+
+2025-03-17 03:58:43,657 - WARNING - Task queue depth is 1
+2025-03-17 03:58:49,556 - WARNING - Task queue depth is 1
+2025-03-17 03:58:49,557 - WARNING - Task queue depth is 2
+2025-03-17 04:02:54,130 - WARNING - Task queue depth is 1
+2025-03-17 04:02:56,716 - WARNING - Task queue depth is 1
+2025-03-17 04:05:07,900 - WARNING - Task queue depth is 1
+2025-03-17 06:53:05,741 - INFO - Initializing Ollama model: gemma3:4b
+2025-03-17 06:53:09,826 - ERROR - Warning: Could not initialize Ollama model: HTTPConnectionPool(host='localhost', port=11434): Max retries exceeded with url: /api/chat (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000029907698490>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))
+2025-03-17 06:53:09,826 - INFO - Ollama model initialized for the first time
+2025-03-17 06:53:09,874 - INFO - Serving on http://0.0.0.0:80
+2025-03-17 13:50:48,198 - WARNING - From C:\Users\shehj\anaconda3\Lib\site-packages\tf_keras\src\losses.py:2976: The name tf.losses.sparse_softmax_cross_entropy is deprecated. Please use tf.compat.v1.losses.sparse_softmax_cross_entropy instead.
+
+2025-03-17 13:50:50,665 - WARNING - Task queue depth is 1
+2025-03-17 13:50:56,622 - WARNING - Task queue depth is 1
+2025-03-17 13:50:56,789 - WARNING - Task queue depth is 2
+2025-03-17 15:09:03,334 - INFO - Initializing Ollama model: gemma3:4b
+2025-03-17 15:09:16,663 - INFO - Ollama model gemma3:4b initialized successfully!
+2025-03-17 15:09:16,663 - INFO - Ollama model initialized for the first time
+2025-03-17 15:09:16,685 - INFO - Serving on http://0.0.0.0:80
+2025-03-17 15:15:59,656 - WARNING - Task queue depth is 1
+2025-03-17 15:15:59,679 - WARNING - Task queue depth is 2
+2025-03-17 15:15:59,679 - WARNING - Task queue depth is 3
+2025-03-17 15:15:59,698 - WARNING - Task queue depth is 2
+2025-03-17 15:16:00,010 - WARNING - Task queue depth is 1

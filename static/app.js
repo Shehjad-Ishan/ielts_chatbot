@@ -2,8 +2,8 @@
 
 // Configuration
 let config = {
-    conversationModel: 'gemma3:12b',
-    scoringModel: 'gemma3:12b',
+    conversationModel: 'gemma3:4b',
+    scoringModel: 'gemma3:4b',
     ollamaEndpoint: 'http://localhost:11434',
     currentTestPart: 1,
     testActive: false,
@@ -375,7 +375,7 @@ async function sendMessage(isScoring = false, customPrompt = null) {
     }
     
     userInput.value = '';
-    updateStatus(`Waiting for response using ${isScoring ? config.scoringModel : config.conversationModel}...`);
+    updateStatus(`Waiting for response using ...`);
     
     const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('Request timed out after 30 seconds')), 120000);
@@ -660,8 +660,8 @@ function loadSettings() {
     const savedSettings = localStorage.getItem('ieltsExaminerSettings');
     if (savedSettings) {
         const parsedSettings = JSON.parse(savedSettings);
-        config.conversationModel = parsedSettings.conversationModel || 'gemma3:12b';
-        config.scoringModel = parsedSettings.scoringModel || 'gemma3:12b';
+        config.conversationModel = parsedSettings.conversationModel || 'gemma3:4b';
+        config.scoringModel = parsedSettings.scoringModel || 'gemma3:4b';
         config.ollamaEndpoint = parsedSettings.ollamaEndpoint || 'http://localhost:11434';
         
         conversationModelInput.value = config.conversationModel;

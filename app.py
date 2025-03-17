@@ -61,7 +61,7 @@ class OllamaModel:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self, model_name="gemma3:12b", endpoint="http://localhost:11434"):
+    def __init__(self, model_name="gemma3:4b", endpoint="http://localhost:11434"):
         if not OllamaModel._is_initialized:
             self.model_name = model_name
             self.endpoint = endpoint
